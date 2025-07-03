@@ -47,7 +47,7 @@ test.serial('postMessage', async t => {
 
 	const msg = { greeting: 'hello' };
 	worker.postMessage(msg);
-	const timestamp = Date.now();
+	const timestamp = performance.now();
 
 	await sleep(500);
 

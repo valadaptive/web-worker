@@ -21,53 +21,23 @@ import VM from 'vm';
 import threads from 'worker_threads';
 
 const WORKER = Symbol.for('worker');
-const EVENTS = Symbol.for('events');
 
-class EventTarget {
-	constructor() {
-		Object.defineProperty(this, EVENTS, {
-			value: new Map()
-		});
-	}
-	dispatchEvent(event) {
-		event.target = event.currentTarget = this;
-		if (this['on'+event.type]) {
-			try {
-				this['on'+event.type](event);
-			}
-			catch (err) {
-				console.error(err);
-			}
-		}
-		const list = this[EVENTS].get(event.type);
-		if (list == null) return;
-		list.forEach(handler => {
-			try {
-				handler.call(this, event);
-			}
-			catch (err) {
-				console.error(err);
+function legacyEventHandlers(...handlers) {
+	const x = class extends EventTarget {};
+	for (const handlerName of handlers) {
+		let handlerValue = null;
+		Object.defineProperty(x.prototype, 'on' + handlerName, {
+			get() {return handlerValue;},
+			set(handler) {
+				if (handlerValue) {
+					this.removeEventListener(handlerName, handlerValue);
+				}
+				handlerValue = handler;
+				if (handlerValue) this.addEventListener(handlerName, handlerValue);
 			}
 		});
 	}
-	addEventListener(type, fn) {
-		let events = this[EVENTS].get(type);
-		if (!events) this[EVENTS].set(type, events = []);
-		events.push(fn);
-	}
-	removeEventListener(type, fn) {
-		let events = this[EVENTS].get(type);
-		if (events) {
-			const index = events.indexOf(fn);
-			if (index !== -1) events.splice(index, 1);
-		}
-	}
-}
-
-function Event(type, target) {
-	this.type = type;
-	this.timeStamp = Date.now();
-	this.target = this.currentTarget = this.data = null;
+	return x;
 }
 
 // this module is used self-referentially on both sides of the
@@ -90,7 +60,7 @@ function mainThread() {
 	 * @param {string} [options.name]  Available as `self.name` within the Worker
 	 * @param {string} [options.type="classic"]  Pass "module" to create a Module Worker.
 	 */
-	class Worker extends EventTarget {
+	class Worker extends legacyEventHandlers('message', 'error', 'close') {
 		constructor(url, options) {
 			super();
 			const { name, type } = options || {};
@@ -115,7 +85,8 @@ function mainThread() {
 				this.dispatchEvent(event);
 			});
 			worker.on('error', error => {
-				error.type = 'error';
+				const event = new Event('error');
+				event.data = error;
 				this.dispatchEvent(error);
 			});
 			worker.on('exit', () => {
@@ -129,7 +100,6 @@ function mainThread() {
 			this[WORKER].terminate();
 		}
 	}
-	Worker.prototype.onmessage = Worker.prototype.onerror = Worker.prototype.onclose = null;
 	return Worker;
 }
 
@@ -159,13 +129,16 @@ function workerThread() {
 	});
 	threads.parentPort.on('error', err => {
 		err.type = 'Error';
-		self.dispatchEvent(err);
+		const event = new Event('error');
+		event.data = err;
+		self.dispatchEvent(event);
 	});
 
+	// Don't count the parentPort event listener for the purpose of keeping the event loop alive
 	threads.parentPort.unref();
 	let refCount = 0;
 
-	class WorkerGlobalScope extends EventTarget {
+	class WorkerGlobalScope extends legacyEventHandlers('message',  'close') {
 		postMessage(data, transferList) {
 			threads.parentPort.postMessage(data, transferList);
 		}
@@ -173,9 +146,8 @@ function workerThread() {
 		close() {
 			process.exit();
 		}
-		importScripts() {
-			for (let i = 0; i < arguments.length; i++) {
-				const url = arguments[i];
+		importScripts(...args) {
+			for (const url of args) {
 				let code;
 				if (/^data:/.test(url)) {
 					code = parseDataUrl(url).data;
