@@ -162,6 +162,9 @@ function workerThread() {
 		self.dispatchEvent(err);
 	});
 
+	threads.parentPort.unref();
+	let refCount = 0;
+
 	class WorkerGlobalScope extends EventTarget {
 		postMessage(data, transferList) {
 			threads.parentPort.postMessage(data, transferList);
@@ -185,6 +188,16 @@ function workerThread() {
 				}
 				VM.runInThisContext(code, { filename: url });
 			}
+		}
+		addEventListener(...args) {
+			if (refCount === 0) threads.parentPort.ref();
+			refCount++;
+			super.addEventListener(...args);
+		}
+		removeEventListener(...args) {
+			refCount--;
+			if (refCount === 0) threads.parentPort.unref();
+			super.addEventListener(...args);
 		}
 	}
 	let proto = Object.getPrototypeOf(global);
