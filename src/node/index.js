@@ -63,6 +63,7 @@ function mainThread() {
 	class Worker extends legacyEventHandlers('message', 'error', 'close') {
 		constructor(url, options) {
 			super();
+			this.refCount = 0;
 			const { name, type } = options || {};
 			url += '';
 			let mod;
@@ -92,12 +93,24 @@ function mainThread() {
 			worker.on('exit', () => {
 				this.dispatchEvent(new Event('close'));
 			});
+			worker.unref();
 		}
 		postMessage(data, transferList) {
 			this[WORKER].postMessage(data, transferList);
 		}
 		terminate() {
 			this[WORKER].terminate();
+		}
+
+		addEventListener(...args) {
+			if (this.refCount === 0) this[WORKER].ref();
+			this.refCount++;
+			super.addEventListener(...args);
+		}
+		removeEventListener(...args) {
+			this.refCount--;
+			if (this.refCount === 0) this[WORKER].unref();
+			super.addEventListener(...args);
 		}
 	}
 	return Worker;
