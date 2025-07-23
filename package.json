@@ -1,6 +1,6 @@
 {
-  "name": "web-worker",
-  "version": "1.5.0",
+  "name": "@glypht/web-worker",
+  "version": "1.6.0",
   "description": "Consistent Web Workers in browser and Node.",
   "main": "./dist/browser/index.cjs",
   "browser": "./dist/browser/index.cjs",
@@ -26,6 +26,9 @@
       "default": "./dist/node/index.cjs"
     }
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "dist",
     "src",
@@ -35,7 +38,10 @@
     "prepare": "tsup",
     "test": "eslint '*.js' test && node --experimental-modules ./node_modules/.bin/ava"
   },
-  "repository": "developit/web-worker",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/valadaptive/web-worker.git"
+  },
   "keywords": [
     "worker",
     "worker_threads",
