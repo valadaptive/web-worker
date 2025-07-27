@@ -19,11 +19,17 @@ import path from 'path';
 import fs from 'fs';
 import VM from 'vm';
 import threads from 'worker_threads';
+import { setMaxListeners } from 'events';
 
 const WORKER = Symbol.for('worker');
 
 function legacyEventHandlers(...handlers) {
-	const x = class extends EventTarget {};
+	const x = class extends EventTarget {
+		constructor(...args) {
+			super(...args);
+			setMaxListeners(Infinity, this);
+		}
+	};
 	for (const handlerName of handlers) {
 		let handlerValue = null;
 		Object.defineProperty(x.prototype, 'on' + handlerName, {
