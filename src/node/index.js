@@ -94,7 +94,7 @@ function mainThread() {
 			worker.on('error', error => {
 				const event = new Event('error');
 				event.data = error;
-				this.dispatchEvent(error);
+				this.dispatchEvent(event);
 			});
 			worker.on('exit', () => {
 				this.dispatchEvent(new Event('close'));
